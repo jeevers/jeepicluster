@@ -1,0 +1,32 @@
+---
+k8s:
+    arch:
+        x86_64: amd64
+        armv7l: arm
+    os:
+        Linux: linux
+        Darwin: darwin
+    etcd_release_extension:
+        Linux: ".tar.gz"
+        Darwin: ".zip"
+    version: "1.9.1"
+    etcd_version: 3.3.1
+    cni_version: 0.7.0-rc2
+    ca_config:
+        expiry: "8760h"
+        CN: "Kubernetes"
+        C: "US"
+        L: "New York"
+        O: "Kubernetes"
+        OU: "CA"
+        ST: "New York"
+        cert_dir: "./k8s_certs"
+    lcl_conf_dir: "./k8s_config"
+    cluster_name: kupirnetes
+    service_cluster_range: 172.30.0.0/16
+    dns_ip: 172.30.0.10
+    cluster_cidr: 192.168.0.0/16
+    container:
+        service: docker
+        runtime: docker
+        endpoint: unix:///var/run/docker.sock

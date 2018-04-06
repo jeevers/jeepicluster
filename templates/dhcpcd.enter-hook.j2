@@ -1,0 +1,10 @@
+case "$reason" in
+PREINIT|RECONFIGURE)
+    ip addr |grep '{{ansible_host}}/24' > /dev/null 2>&1
+    if [ $? -ne 0 ]
+    then
+        ip addr add {{ansible_host}}/24 dev eth0
+    fi
+    exit 0
+    ;;
+esac

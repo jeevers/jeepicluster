@@ -1,0 +1,19 @@
+---
+- hosts: localhost
+  connection: local
+  tasks:
+      - name: "k8s_regen_certs | delete certs generated with ips"
+        file:
+            path: "{{k8s.ca_config.cert_dir}}/{{item}}.pem"
+            state: absent
+        with_items:
+            - kubernetes
+            - kubernetes-key
+            - etcd
+            - etcd-key
+
+- import_playbook: "k8s_generate_certs.yml"
+- import_playbook: "k8s_generate_kubeconfigs.yml"
+- import_playbook: "k8s_etcd_deploy.yml"
+- import_playbook: "k8s_controller.yml"
+- import_playbook: "k8s_worker.yml"

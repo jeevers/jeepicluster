@@ -1,0 +1,122 @@
+---
+- hosts: localhost
+  connection: local
+  tasks:
+      - name: k8s_etcd_deploy | gather kubernetes node architectures
+        setup:
+        delegate_to: "{{item}}"
+        delegate_facts: true
+        with_items: "{{groups['k8s_etcd_cluster']}}"
+        tags:
+            - "compile_etcd"
+      - name: k8s_etcd_deploy | create dir for etcd source
+        file:
+            path: "./etcd_source"
+            state: directory
+        when: groups['k8s_etcd_cluster'] | map('extract', hostvars)| map(attribute='ansible_architecture') | unique | join(',') == 'armv7l'
+        tags:
+            - "compile_etcd"
+      - name: k8s_etcd_deploy | download etcd source
+        get_url:
+            url: "https://github.com/coreos/etcd/releases/download/v{{k8s.etcd_version}}/v{{k8s.etcd_version}}.tar.gz"
+            dest: "./etcd_source/"
+        when: groups['k8s_etcd_cluster'] | map('extract', hostvars)| map(attribute='ansible_architecture') | unique | join(',') == 'armv7l'
+        tags:
+            - "compile_etcd"
+      - name: k8s_etcd_deploy | download and extract etcd source tarball
+        command: "tar -zxf v{{k8s.etcd_version}}.tar.gz"
+        args:
+            chdir: "./etcd_source"
+            creates: "etcd-{{k8s.etcd_version}}"
+        when: groups['k8s_etcd_cluster'] | map('extract', hostvars)| map(attribute='ansible_architecture') | unique | join(',') == 'armv7l'
+        tags:
+            - "compile_etcd"
+      # not sure why this isn't working....
+      # - name: k8s_etcd_deploy | download and extract etcd source tarball
+      #  unarchive:
+      #      src: "./etcd_source/v{{k8s.etcd_version}}.tar.gz"
+      #      dest: "./etcd_source/etcd"
+      #  when: groups['jeepi'] | map('extract', hostvars)| map(attribute='ansible_architecture') | unique | join(',') == 'armv7l'
+      #  tags:
+      #      - "compile_etcd"
+      - name: k8s_etcd_deploy | compile etcd and etcdctl binaries for armv7l cpu
+        shell: "GOOS=linux GOARCH=arm GOARM=7 ./build"
+        args:
+            chdir: "./etcd_source/etcd-{{k8s.etcd_version}}"
+            creates: "bin/etcd"
+        when: groups['k8s_etcd_cluster'] | map('extract', hostvars)| map(attribute='ansible_architecture') | unique | join(',') == 'armv7l'
+
+- hosts: k8s_etcd_cluster
+  become: true
+  tasks:
+      - name: k8s_etcd_deploy | copy arm etcd binaries to /usr/local/bin
+        copy:
+            src: "./etcd_source/etcd-{{k8s.etcd_version}}/bin/{{item}}"
+            dest: "/usr/local/bin/{{item}}"
+            mode: 0755
+        with_items:
+            - etcd
+            - etcdctl
+        notify:
+            - restart etcd
+        when: ansible_architecture == "armv7l"
+      - name: k8s_etcd_deploy | download official etcd binaries from etcd github
+        get_url:
+            url: "https://github.com/coreos/etcd/releases/download/v3.3.1/etcd-v3.3.1-{{k8s.os[ansible_os]}}-{{k8s.arch[ansible_architecture]}}.{{k8s.etcd_release_extension[ansible_os]}}"
+            dest: "/tmp/"
+        when: ansible_architecture != "armv7l"
+      - name: k8s_etcd_deploy | extract official etcd binaries
+        shell: "tar -zxf etcd-v3.3.1-{{k8s.os[ansible_os]}}-{{k8s.arch[ansible_architecture]}}.{{k8s.etcd_release_extension[ansible_os]}}"
+        args:
+            chdir: "/tmp/"
+            creates: "etcd-v3.3.1-{{k8s.os[ansible_os]}}-{{k8s.arch[ansible_architecture]}}"
+        when: ansible_architecture != "armv7l"
+      - name: k8s_etcd_deploy |
+        copy:
+            src: "/tmp/etcd-v3.3.1-{{k8s.os[ansible_os]}}-{{k8s.arch[ansible_architecture]}}/{{item}}"
+            dest: "/usr/local/bin/{{item}}"
+            remote_src: true
+        with_items:
+            - etcd
+            - etcdctl
+        notify:
+            - restart etcd
+        when: ansible_architecture != "armv7l"
+      - name: k8s_etcd_deploy | create etcd config dirs
+        file:
+            path: "{{item}}"
+            state: directory
+        with_items:
+            - "/etc/etcd"
+            - "/var/lib/etcd"
+      - name: k8s_etcd_deploy | copy certs to etcd config directory
+        copy:
+            src: "{{k8s.ca_config.cert_dir}}/{{item}}"
+            dest: "/etc/etcd/"
+        with_items:
+            - "ca.pem"
+            - "etcd.pem"
+            - "etcd-key.pem"
+        notify:
+            - restart etcd
+      - name: k8s_etcd_deploy | deploy etcd.service config file
+        template:
+            src: "etcd.service.j2"
+            dest: "/etc/systemd/system/etcd.service"
+        notify:
+            - systemd reload daemon
+            - restart etcd
+      - name: k8s_etcd_deploy | enable and start etcd
+        service:
+            name: etcd
+            enabled: true
+            state: started
+  handlers:
+      - name: systemd reload daemon
+        systemd:
+            daemon_reload: true
+        when: ansible_service_mgr == "systemd"
+      - name: restart etcd
+        service:
+            name: etcd
+            state: restarted

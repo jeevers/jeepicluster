@@ -1,0 +1,12 @@
+---
+#- hosts: localhost
+#  connection: local
+#  tasks:
+#      - include_vars: "k8s.yml"
+#- import_playbook: "install_docker.yml"
+- import_playbook: "k8s_prereqs.yml"
+- import_playbook: "k8s_generate_certs.yml"
+- import_playbook: "k8s_generate_kubeconfigs.yml"
+- import_playbook: "k8s_etcd_deploy.yml"
+- import_playbook: "k8s_controller.yml"
+- import_playbook: "k8s_worker.yml"

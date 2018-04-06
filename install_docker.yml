@@ -1,0 +1,66 @@
+---
+- name: install_docker
+  hosts: jeepi
+  become: yes
+  vars:
+      docker_url: "https://download.docker.com"
+      docker_channel: "edge"
+  tasks:
+      - name: update packages
+        apt:
+            update_cache: yes
+            upgrade: yes
+      - name: install packages
+        apt:
+            name: "{{item}}"
+            state: latest
+        with_items:
+            - curl
+            - apt-transport-https
+            - ca-certificates
+      - name: add docker gpg key
+        apt_key:
+            url: "{{docker_url}}/linux/{{ansible_lsb.id | lower}}/gpg"
+            state: present
+        when: ansible_distribution == "Debian" and ansible_architecture == "armv7l"
+      - name: add docker repo
+        apt_repository:
+            repo: "deb [arch=armhf] {{docker_url}}/linux/{{ansible_lsb.id | lower}} {{ansible_distribution_release | lower}} {{docker_channel}}"
+            filename: docker
+            state: present
+      - name: update packages again
+        apt:
+            update_cache: yes
+      #- name: get docker installation script
+      #  get_url:
+      #      url: "https://get.docker.com"
+      #      dest: /root/get_docker.sh
+      #- name: run docker installation script
+      #  command: sh /root/get_docker.sh creates=/usr/bin/docker
+      - name: install docker
+        apt:
+            name: docker-ce
+            state: latest
+            install_recommends: no
+      - name: enable and start docker
+        service:
+            name: docker
+            enabled: yes
+            state: started
+      - name: add cgroup config to boot command
+        lineinfile:
+            path: /boot/cmdline.txt
+            regexp: "^(.*(?<! cgroup_enable=cpuset cgroup_enable=memory cgroup_memory=1)$)"
+            backrefs: true
+            line: '\1 cgroup_enable=cpuset cgroup_enable=memory cgroup_memory=1'
+        notify:
+            - reboot
+            - wait for server to come back
+  handlers:
+      - name: reboot
+        shell: "shutdown -r +1 'Ansible rebooting for system change'"
+        ignore_errors: true
+      - name: wait for server to come back
+        wait_for_connection:
+            delay: 30
+            timeout: 500

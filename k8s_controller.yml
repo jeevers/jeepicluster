@@ -1,0 +1,116 @@
+---
+- hosts: k8s_controller
+  become: true
+  tasks:
+      - name: k8s_controller | install kubernetes binaries
+        get_url:
+            url: "https://storage.googleapis.com/kubernetes-release/release/v{{k8s.version}}/bin/{{k8s.os[ansible_system]}}/{{k8s.arch[ansible_architecture]}}/{{item}}"
+            dest: "/usr/local/bin/{{item}}"
+            mode: 0755
+        with_items:
+            - "kube-apiserver"
+            - "kube-controller-manager"
+            - "kube-scheduler"
+            - "kubectl"
+      - name: k8s_controller | make kubernetes config directory
+        file:
+            path: "{{item}}"
+            state: directory
+        with_items:
+            - "/var/lib/kubernetes/"
+      - name: k8s_controller | copy certs to kubernetes dir
+        copy:
+            src: "{{k8s.ca_config.cert_dir}}/{{item}}"
+            dest: "/var/lib/kubernetes/"
+        with_items:
+            - "ca.pem"
+            - "ca-key.pem"
+            - "kubernetes.pem"
+            - "kubernetes-key.pem"
+        notify:
+            - restart kube-apiserver
+            - restart kube-controller-manager
+            - restart kube-scheduler
+      - name: k8s_controller | generate encryption config
+        template:
+            src: "encryption-config.yaml.j2"
+            dest: "/var/lib/kubernetes/encryption-config.yaml"
+      - name: k8s_controller | gather info about the etcd cluster nodes
+        setup:
+        delegate_to: "{{item}}"
+        delegate_facts: true
+        with_items: "{{groups['k8s_etcd_cluster']}}"
+      - name: k8s_controller | generate kube-apiserver service config
+        template:
+            src: "{{item}}.j2"
+            dest: "/etc/systemd/system/{{item}}"
+        with_items:
+            - "kube-apiserver.service"
+        notify:
+            - systemd reload daemon
+            - restart kube-apiserver
+      - name: k8s_controller | generate kube-controller-manager service config
+        template:
+            src: "{{item}}.j2"
+            dest: "/etc/systemd/system/{{item}}"
+        with_items:
+            - "kube-controller-manager.service"
+        notify:
+            - systemd reload daemon
+            - restart kube-controller-manager
+      - name: k8s_controller | generate kube-scheduler service config
+        template:
+            src: "{{item}}.j2"
+            dest: "/etc/systemd/system/{{item}}"
+        with_items:
+            - "kube-scheduler.service"
+        notify:
+            - systemd reload daemon
+            - restart kube-scheduler
+      - name: k8s_controller | start services
+        service:
+            name: "{{item}}"
+            enabled: true
+            state: started
+        with_items:
+            - "kube-apiserver"
+            - "kube-controller-manager"
+            - "kube-scheduler"
+      - name: k8s_controller | copy rbac config files to node
+        copy:
+            src: "{{item}}"
+            dest: "/root/"
+        with_items:
+            - "clusterrole.yaml"
+            - "clusterrolebinding.yaml"
+        notify:
+            - wait for apiserver to be available
+            - apply rbac configs
+  handlers:
+      - name: systemd reload daemon
+        systemd:
+            daemon_reload: true
+        when: ansible_service_mgr == "systemd"
+      - name: restart kube-apiserver
+        service:
+            name: kube-apiserver
+            state: restarted
+      - name: restart kube-controller-manager
+        service:
+            name: kube-controller-manager
+            state: restarted
+      - name: restart kube-scheduler
+        service:
+            name: kube-scheduler
+            state: restarted
+      - name: wait for apiserver to be available
+        wait_for:
+            port: 8080
+            host: localhost
+            delay: 3
+      - name: apply rbac configs
+        shell: "kubectl apply -f /tmp/{{item}}"
+        with_items:
+            - "clusterrole.yaml"
+            - "clusterrolebinding.yaml"
+        run_once: true

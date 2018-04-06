@@ -1,0 +1,96 @@
+---
+- hosts: localhost
+  connection: local
+  tasks:
+      - name: k8s_generate_certs | create cert directory
+        file:
+            path: "{{k8s.ca_config.cert_dir}}"
+            state: directory
+      - name: k8s_generate_certs | generate csr configs
+        template:
+            src: "{{item}}.json.j2"
+            dest: "{{k8s.ca_config.cert_dir}}/{{item}}.json"
+        with_items:
+            - "ca-config"
+            - "ca-csr"
+            - "admin-csr"
+            - "kube-proxy-csr"
+            - "kubernetes-csr"
+            - "etcd-csr"
+      - name: k8s_generate_certs | generate ca certs
+        shell: "/usr/local/bin/cfssl gencert -initca ca-csr.json | /usr/local/bin/cfssljson -bare ca"
+        args:
+            chdir: "{{k8s.ca_config.cert_dir}}"
+            creates: "ca-key.pem"
+      - name: k8s_generate_certs | generate admin/proxy certs
+        shell: >
+            /usr/local/bin/cfssl gencert
+            -ca=ca.pem
+            -ca-key=ca-key.pem
+            -config=ca-config.json
+            -profile=kubernetes
+            {{item}}-csr.json | /usr/local/bin/cfssljson -bare {{item}}
+        args:
+            chdir: "{{k8s.ca_config.cert_dir}}"
+            creates: "{{item}}-key.pem"
+        with_items:
+            - "admin"
+            - "kube-proxy"
+      - name: k8s_generate_certs | gather host information for generating kubernetes api cert
+        setup:
+        delegate_to: "{{item}}"
+        delegate_facts: true
+        with_items: "{{groups['k8s_controller']}}"
+      - name: k8s_generate_certs | generate kubernetes api certs
+        shell: >
+            /usr/local/bin/cfssl gencert
+            -ca=ca.pem
+            -ca-key=ca-key.pem
+            -config=ca-config.json
+            -hostname={{k8s.service_cluster_range.split('.')[0:3] | join('.')}}.1,{{groups['k8s_controller']|map('extract', hostvars)|map(attribute='ansible_hostname')| join(',')}},{{groups['k8s_controller']|map('extract', hostvars)|map(attribute='ansible_default_ipv4.address')| join(',')}},{{groups['k8s_controller']|map('extract', hostvars)|map(attribute='ansible_host')| join(',')}},127.0.0.1,kubernetes.default
+            -profile=kubernetes
+            kubernetes-csr.json | /usr/local/bin/cfssljson -bare kubernetes
+        args:
+            chdir: "{{k8s.ca_config.cert_dir}}"
+            creates: "kubernetes-key.pem"
+        delegate_to: localhost
+      - name: k8s_generate_certs | gather host information for generating etcd cert
+        setup:
+        delegate_to: "{{item}}"
+        delegate_facts: true
+        with_items: "{{groups['k8s_etcd_cluster']}}"
+      - name: k8s_generate_certs | generate etcd certs
+        shell: >
+            /usr/local/bin/cfssl gencert
+            -ca=ca.pem
+            -ca-key=ca-key.pem
+            -config=ca-config.json
+            -hostname={{groups['k8s_etcd_cluster']|map('extract', hostvars)|map(attribute='ansible_hostname')| join(',')}},{{groups['k8s_etcd_cluster']|map('extract', hostvars)|map(attribute='ansible_default_ipv4.address')| join(',')}},{{groups['k8s_etcd_cluster']|map('extract', hostvars)|map(attribute='ansible_host')| join(',')}}
+            -profile=kubernetes
+            etcd-csr.json | /usr/local/bin/cfssljson -bare etcd
+        args:
+            chdir: "{{k8s.ca_config.cert_dir}}"
+            creates: "etcd-key.pem"
+        delegate_to: localhost
+
+
+- hosts: k8s_worker
+  tasks:
+      - name: k8s_generate_certs | generate csr configs
+        template:
+            src: "node-csr.json.j2"
+            dest: "{{k8s.ca_config.cert_dir}}/{{inventory_hostname}}-csr.json"
+        delegate_to: localhost
+      - name: k8s_generate_certs | generate admin/proxy certs
+        shell: >
+            /usr/local/bin/cfssl gencert
+            -ca=ca.pem
+            -ca-key=ca-key.pem
+            -config=ca-config.json
+            -hostname={{inventory_hostname}},{{ansible_host}},{{ansible_default_ipv4.address}}
+            -profile=kubernetes
+            {{inventory_hostname}}-csr.json | /usr/local/bin/cfssljson -bare {{inventory_hostname}}
+        args:
+            chdir: "{{k8s.ca_config.cert_dir}}"
+            creates: "{{inventory_hostname}}-key.pem"
+        delegate_to: localhost
