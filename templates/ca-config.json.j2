@@ -1,0 +1,13 @@
+{
+  "signing": {
+    "default": {
+       "expiry": "{{k8s.ca_config.expiry}}"
+    },
+    "profiles": {
+      "kubernetes": {
+        "usages": ["signing", "key encipherment", "server auth", "client auth"],
+        "expiry": "{{k8s.ca_config.expiry}}"
+      }
+    }
+  }
+}

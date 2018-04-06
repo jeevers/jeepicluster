@@ -1,0 +1,112 @@
+---
+- hosts: jeepi
+  become: yes
+  tasks:
+      - name: put all nodes in jeepi cluster in the hosts file
+        template:
+            src: hosts.j2
+            dest: /etc/hosts
+      - name: install python build dependencies
+        apt:
+            name: "{{ item }}"
+        with_items:
+            - make 
+            - build-essential
+            - libssl-dev
+            - zlib1g-dev
+            - libbz2-dev
+            - libreadline-dev
+            - libsqlite3-dev 
+            - wget 
+            - curl
+            - llvm
+            - libncurses5-dev
+            - libncursesw5-dev
+            - xz-utils
+            - tk-dev
+      - name: get pyenv installer
+        get_url:
+            url: https://raw.githubusercontent.com/pyenv/pyenv-installer/master/bin/pyenv-installer
+            dest: /tmp/pyenv-installer
+      - name: run pyenv-installer script as root and pi users
+        command: "bash pyenv-installer"
+        args:
+            chdir: /tmp/
+            creates: "/home/pi/.pyenv"
+        become_user: pi
+      - name: install pyenv-virtualenv plugin
+        git:
+            repo: "https://github.com/yyuu/pyenv-virtualenv.git"
+            dest: "/home/pi/.pyenv/plugins/pyenv-virtualenv"
+        become_user: pi
+      - name: put stuff in bash_profile
+        template:
+            src: bash_profile.j2
+            dest: /home/pi/.bash_profile
+            owner: pi
+            group: pi
+            mode: '0750'
+      - name: install requested versions of python with pyenv
+        command: "/home/pi/.pyenv/bin/pyenv install -s {{ item }}"
+        args:
+            creates: "/home/pi/.pyenv/versions/{{ item }}"
+        become_user: pi
+        with_items:
+            - "2.7.13"
+            - "3.6.1"
+      - name: set pyenv version of python
+        lineinfile:
+            path: "/home/pi/.pyenv/version"
+            line: "{{ item }}"
+            owner: pi
+            mode: "0644"
+            create: yes
+        with_items:
+            - "2.7.13"
+            - "3.6.1"
+      #- name: set shell stuff for pyenv
+      #  lineinfile:
+      #      path: "/home/pi/.bash_profile"
+      #      line: "{{ line }}"
+      #      create: yes
+      #  with_lines:
+      #      - 'export PATH="/home/pi/.pyenv/bin:$PATH"'
+      #      - 'eval "$(pyenv init -)"'
+      #      - 'eval "$(pyenv virtualenv-init -)"'
+      - name: get get_pip.py
+        get_url: 
+            url: https://bootstrap.pypa.io/get-pip.py
+            dest: /tmp/get-pip.py
+      - name: install pip
+        command: "python get-pip.py"
+        args:
+            chdir: /tmp
+            creates: /usr/local/bin/pip
+      - name: install python devel headers
+        apt:
+            name: python-dev
+            state: latest
+      - name: install dask python 2.7.13
+        pip:
+            name:
+                - dask
+                - distributed
+                - bokeh
+                - virtualenv
+            state: latest
+            virtualenv: "/home/pi/.pyenv/versions/2.7.13"
+            virtualenv_command: "/home/pi/.pyenv/bin/pyenv virtualenv"
+            virtualenv_python: python2.7
+        become_user: pi
+      - name: install dask python 3.6.1
+        pip:
+            name:
+                - dask
+                - distributed
+                - bokeh
+                - virtualenv
+            state: latest
+            virtualenv: "/home/pi/.pyenv/versions/3.6.1"
+            virtualenv_command: "/home/pi/.pyenv/bin/pyenv virtualenv"
+            virtualenv_python: python3.6
+        become_user: pi
