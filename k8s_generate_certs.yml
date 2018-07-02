@@ -47,7 +47,7 @@
             -ca=ca.pem
             -ca-key=ca-key.pem
             -config=ca-config.json
-            -hostname={{k8s.service_cluster_range.split('.')[0:3] | join('.')}}.1,{{groups['k8s_controller']|map('extract', hostvars)|map(attribute='ansible_hostname')| join(',')}},{{groups['k8s_controller']|map('extract', hostvars)|map(attribute='ansible_default_ipv4.address')| join(',')}},{{groups['k8s_controller']|map('extract', hostvars)|map(attribute='ansible_host')| join(',')}},127.0.0.1,kubernetes.default
+            -hostname={{k8s.service_cluster_range.split('.')[0:3] | join('.')}}.1,{{groups['k8s_controller']|map('extract', hostvars)|map(attribute='ansible_hostname')| join(',')}},{{groups['k8s_controller']|map('extract', hostvars)|map(attribute='ansible_host')| join(',')}},127.0.0.1,kubernetes.default
             -profile=kubernetes
             kubernetes-csr.json | /usr/local/bin/cfssljson -bare kubernetes
         args:
@@ -65,7 +65,7 @@
             -ca=ca.pem
             -ca-key=ca-key.pem
             -config=ca-config.json
-            -hostname={{groups['k8s_etcd_cluster']|map('extract', hostvars)|map(attribute='ansible_hostname')| join(',')}},{{groups['k8s_etcd_cluster']|map('extract', hostvars)|map(attribute='ansible_default_ipv4.address')| join(',')}},{{groups['k8s_etcd_cluster']|map('extract', hostvars)|map(attribute='ansible_host')| join(',')}}
+            -hostname={{groups['k8s_etcd_cluster']|map('extract', hostvars)|map(attribute='ansible_hostname')| join(',')}},{{groups['k8s_etcd_cluster']|map('extract', hostvars)|map(attribute='ansible_host')| join(',')}}
             -profile=kubernetes
             etcd-csr.json | /usr/local/bin/cfssljson -bare etcd
         args:
@@ -87,7 +87,7 @@
             -ca=ca.pem
             -ca-key=ca-key.pem
             -config=ca-config.json
-            -hostname={{inventory_hostname}},{{ansible_host}},{{ansible_default_ipv4.address}}
+            -hostname={{inventory_hostname}},{{ansible_host}}
             -profile=kubernetes
             {{inventory_hostname}}-csr.json | /usr/local/bin/cfssljson -bare {{inventory_hostname}}
         args:
