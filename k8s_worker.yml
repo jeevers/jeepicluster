@@ -27,6 +27,25 @@
             - "kubectl"
             - "kube-proxy"
             - "kubelet"
+        tags:
+            - dl_bins
+        when: not update | default(false)
+      - name: k8s_worker | update kubernetes binaries
+        get_url:
+            url: "https://storage.googleapis.com/kubernetes-release/release/v{{k8s.version}}/bin/{{k8s.os[ansible_system]}}/{{k8s.arch[ansible_architecture]}}/{{item}}"
+            dest: "/usr/local/bin/{{item}}"
+            mode: 0755
+            force: yes
+        with_items:
+            - "kubectl"
+            - "kube-proxy"
+            - "kubelet"
+        tags:
+            - dl_bins
+        when: update | default(false)
+        notify:
+            - restart kubelet
+            - restart kube-proxy
       - name: k8s_worker | download and extract cni binaries
         unarchive:
             src: "https://github.com/containernetworking/plugins/releases/download/v{{k8s.cni_version}}/cni-plugins-{{k8s.arch[ansible_architecture]}}-v{{k8s.cni_version}}.tgz"

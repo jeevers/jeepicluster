@@ -12,6 +12,23 @@
             - "kube-controller-manager"
             - "kube-scheduler"
             - "kubectl"
+        tags:
+            - dl_bins
+        when: not update | default(false)
+      - name: k8s_controller | update kubernetes binaries
+        get_url:
+            url: "https://storage.googleapis.com/kubernetes-release/release/v{{k8s.version}}/bin/{{k8s.os[ansible_system]}}/{{k8s.arch[ansible_architecture]}}/{{item}}"
+            dest: "/usr/local/bin/{{item}}"
+            mode: 0755
+            force: true
+        with_items:
+            - "kube-apiserver"
+            - "kube-controller-manager"
+            - "kube-scheduler"
+            - "kubectl"
+        tags:
+            - dl_bins
+        when: update | default(false)
       - name: k8s_controller | make kubernetes config directory
         file:
             path: "{{item}}"

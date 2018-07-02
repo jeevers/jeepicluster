@@ -26,6 +26,11 @@
 
 - hosts: jeepi
   become: true
+  pre_tasks:
+      - name: update packages
+        apt:
+            update_cache: true
+        when: ansible_pkg_mgr == "apt"
   tasks:
       - name: install tcpdump
         package:
@@ -33,6 +38,12 @@
             state: latest
         tags:
             - tcpdump
+      - name: install conntrack
+        package:
+            name: conntrack
+            state: latest
+        tags:
+            - conntrack
       - name: k8s_prereqs | create hosts
         template:
             src: hosts_internal.j2

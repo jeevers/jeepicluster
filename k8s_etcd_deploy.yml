@@ -48,7 +48,18 @@
 
 - hosts: k8s_etcd_cluster
   become: true
+  serial: 1
   tasks:
+      - name: k8s_etcd_deploy | check etcdctl binary exists
+        stat:
+            path: /usr/local/bin/etcdctl
+        register: etcdctl
+        when: ansible_architecture == "armv7l"
+      - name: k8s_etcd_deploy | create snapshot of existing etcd data
+        shell: "/usr/local/bin/etcdctl snapshot save /root/etcd_backup.db"
+        environment:
+            ETCDCTL_API: 3
+        when: ansible_architecture == "armv7l" and etcdctl.stat.exists
       - name: k8s_etcd_deploy | copy arm etcd binaries to /usr/local/bin
         copy:
             src: "./etcd_source/etcd-{{k8s.etcd_version}}/bin/{{item}}"
@@ -62,18 +73,18 @@
         when: ansible_architecture == "armv7l"
       - name: k8s_etcd_deploy | download official etcd binaries from etcd github
         get_url:
-            url: "https://github.com/coreos/etcd/releases/download/v3.3.1/etcd-v3.3.1-{{k8s.os[ansible_os]}}-{{k8s.arch[ansible_architecture]}}.{{k8s.etcd_release_extension[ansible_os]}}"
+            url: "https://github.com/coreos/etcd/releases/download/v{{k8s.etcd_version}}/etcd-v{{k8s.etcd_version}}-{{k8s.os[ansible_os]}}-{{k8s.arch[ansible_architecture]}}.{{k8s.etcd_release_extension[ansible_os]}}"
             dest: "/tmp/"
         when: ansible_architecture != "armv7l"
       - name: k8s_etcd_deploy | extract official etcd binaries
-        shell: "tar -zxf etcd-v3.3.1-{{k8s.os[ansible_os]}}-{{k8s.arch[ansible_architecture]}}.{{k8s.etcd_release_extension[ansible_os]}}"
+        shell: "tar -zxf etcd-v{{k8s.etcd_version}}-{{k8s.os[ansible_os]}}-{{k8s.arch[ansible_architecture]}}.{{k8s.etcd_release_extension[ansible_os]}}"
         args:
             chdir: "/tmp/"
-            creates: "etcd-v3.3.1-{{k8s.os[ansible_os]}}-{{k8s.arch[ansible_architecture]}}"
+            creates: "etcd-v{{k8s.etcd_version}}-{{k8s.os[ansible_os]}}-{{k8s.arch[ansible_architecture]}}"
         when: ansible_architecture != "armv7l"
       - name: k8s_etcd_deploy |
         copy:
-            src: "/tmp/etcd-v3.3.1-{{k8s.os[ansible_os]}}-{{k8s.arch[ansible_architecture]}}/{{item}}"
+            src: "/tmp/etcd-v{{k8s.etcd_version}}-{{k8s.os[ansible_os]}}-{{k8s.arch[ansible_architecture]}}/{{item}}"
             dest: "/usr/local/bin/{{item}}"
             remote_src: true
         with_items:
