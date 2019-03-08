@@ -2,6 +2,25 @@
 - hosts: k8s_worker
   become: true
   tasks:
+      - name: create docker config dir
+        file:
+            path: "{{ansible_env.HOME}}/.docker"
+            state: directory
+            mode: 0700
+        when: vault_gcp_svc_acct is defined
+        tags:
+            - docker_registry
+            - gcr_login
+      - name: set gcr registry credentials
+        template:
+            src: "dockercfg.json.j2"
+            #dest: "/var/lib/kubelet/config.json"
+            dest: "{{ansible_env.HOME}}/.docker/config.json"
+            mode: 0600
+        when: vault_gcp_svc_acct is defined
+        tags:
+            - docker_registry
+            - gcr_login
       - name: k8s_worker | enable passing bridge traffic to iptables
         sysctl:
             name: net.bridge.bridge-nf-call-iptables
@@ -51,6 +70,8 @@
             src: "https://github.com/containernetworking/plugins/releases/download/v{{k8s.cni_version}}/cni-plugins-{{k8s.arch[ansible_architecture]}}-v{{k8s.cni_version}}.tgz"
             dest: "/opt/cni/bin/"
             remote_src: true
+        notify:
+            - restart kubelet
       - name: k8s_worker | install additonal packages
         package:
             name:
@@ -63,7 +84,7 @@
         with_items:
             - "10-bridge.conf"
             - "99-loopback.conf"
-        when: "{{cni_config |default(false)}}"
+        when: "{{k8s.cni_config |default(false)}}"
       - name: k8s_worker | copy kubelet kubeconfig
         copy:
             src: "{{k8s.ca_config.cert_dir}}/{{ansible_hostname}}.kubeconfig"

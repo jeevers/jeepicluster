@@ -18,13 +18,14 @@
             - "compile_etcd"
       - name: k8s_etcd_deploy | download etcd source
         get_url:
-            url: "https://github.com/coreos/etcd/releases/download/v{{k8s.etcd_version}}/v{{k8s.etcd_version}}.tar.gz"
+            #url: "https://github.com/coreos/etcd/releases/download/v{{k8s.etcd_version}}/v{{k8s.etcd_version}}.tar.gz"
+            url: "https://github.com/etcd-io/etcd/archive/v{{k8s.etcd_version}}.tar.gz"
             dest: "./etcd_source/"
         when: groups['k8s_etcd_cluster'] | map('extract', hostvars)| map(attribute='ansible_architecture') | unique | join(',') == 'armv7l'
         tags:
             - "compile_etcd"
       - name: k8s_etcd_deploy | download and extract etcd source tarball
-        command: "tar -zxf v{{k8s.etcd_version}}.tar.gz"
+        command: "tar -zxf etcd-{{k8s.etcd_version}}.tar.gz"
         args:
             chdir: "./etcd_source"
             creates: "etcd-{{k8s.etcd_version}}"
@@ -55,11 +56,17 @@
             path: /usr/local/bin/etcdctl
         register: etcdctl
         when: ansible_architecture == "armv7l"
+      - name: check if etcd data dir exists
+        stat:
+            path: /var/lib/etcd
+        register: etcd_data
       - name: k8s_etcd_deploy | create snapshot of existing etcd data
         shell: "/usr/local/bin/etcdctl snapshot save /root/etcd_backup.db"
         environment:
             ETCDCTL_API: 3
-        when: ansible_architecture == "armv7l" and etcdctl.stat.exists
+        tags:
+            - etcd_snapshot
+        when: ansible_architecture == "armv7l" and etcdctl.stat.exists and etcd_data.stat.exists
       - name: k8s_etcd_deploy | copy arm etcd binaries to /usr/local/bin
         copy:
             src: "./etcd_source/etcd-{{k8s.etcd_version}}/bin/{{item}}"
@@ -73,7 +80,6 @@
         when: ansible_architecture == "armv7l"
       - name: k8s_etcd_deploy | download official etcd binaries from etcd github
         get_url:
-<<<<<<< HEAD
             url: "https://github.com/coreos/etcd/releases/download/v{{k8s.etcd_version}}/etcd-v{{k8s.etcd_version}}-{{k8s.os[ansible_os]}}-{{k8s.arch[ansible_architecture]}}.{{k8s.etcd_release_extension[ansible_os]}}"
             dest: "/tmp/"
         when: ansible_architecture != "armv7l"
@@ -86,20 +92,6 @@
       - name: k8s_etcd_deploy |
         copy:
             src: "/tmp/etcd-v{{k8s.etcd_version}}-{{k8s.os[ansible_os]}}-{{k8s.arch[ansible_architecture]}}/{{item}}"
-=======
-            url: "https://github.com/coreos/etcd/releases/download/v3.3.1/etcd-v3.3.1-{{k8s.os[ansible_os]}}-{{k8s.arch[ansible_architecture]}}.{{k8s.etcd_release_extension[ansible_os]}}"
-            dest: "/tmp/"
-        when: ansible_architecture != "armv7l"
-      - name: k8s_etcd_deploy | extract official etcd binaries
-        shell: "tar -zxf etcd-v3.3.1-{{k8s.os[ansible_os]}}-{{k8s.arch[ansible_architecture]}}.{{k8s.etcd_release_extension[ansible_os]}}"
-        args:
-            chdir: "/tmp/"
-            creates: "etcd-v3.3.1-{{k8s.os[ansible_os]}}-{{k8s.arch[ansible_architecture]}}"
-        when: ansible_architecture != "armv7l"
-      - name: k8s_etcd_deploy |
-        copy:
-            src: "/tmp/etcd-v3.3.1-{{k8s.os[ansible_os]}}-{{k8s.arch[ansible_architecture]}}/{{item}}"
->>>>>>> 1d983f8140db8ec5cfc43114b7436a2acafc464c
             dest: "/usr/local/bin/{{item}}"
             remote_src: true
         with_items:

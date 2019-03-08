@@ -9,10 +9,11 @@ k8s:
     etcd_release_extension:
         Linux: ".tar.gz"
         Darwin: ".zip"
-    version: "1.11.0"
-    etcd_version: 3.3.8
+    version: "1.13.3"
+    etcd_version: 3.3.12
     docker_registry_version: 2.6.2
-    cni_version: 0.7.0-rc2
+    cni_version: 0.7.4
+    cni_config: false
     ca_config:
         expiry: "8760h"
         CN: "Kubernetes"

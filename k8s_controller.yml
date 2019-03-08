@@ -126,7 +126,7 @@
             host: localhost
             delay: 3
       - name: apply rbac configs
-        shell: "kubectl apply -f /tmp/{{item}}"
+        local_action: "kubectl apply -f files/{{item}}"
         with_items:
             - "clusterrole.yaml"
             - "clusterrolebinding.yaml"

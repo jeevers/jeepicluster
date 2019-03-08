@@ -15,14 +15,14 @@
         become: true
         tags:
             - "cfssl"
-      - name: k8s_prereqs | install kubectl
-        get_url:
-            url: "https://storage.googleapis.com/kubernetes-release/release/v{{k8s.version}}/bin/{{k8s.os[ansible_system]}}/{{k8s.arch[ansible_architecture]}}/kubectl"
-            dest: "/usr/local/bin/"
-            mode: 0755
-        become: true
-        tags:
-            - "kubectl"
+      #- name: k8s_prereqs | install kubectl
+      #  get_url:
+      #      url: "https://storage.googleapis.com/kubernetes-release/release/v{{k8s.version}}/bin/{{k8s.os[ansible_system]}}/{{k8s.arch[ansible_architecture]}}/kubectl"
+      #      dest: "/usr/local/bin/"
+      #      mode: 0755
+      #  become: true
+      #  tags:
+      #      - "kubectl"
 
 - hosts: jeepi
   become: true
